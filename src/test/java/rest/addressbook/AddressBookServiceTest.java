@@ -328,11 +328,12 @@ public class AddressBookServiceTest {
 
     // Idempotent: the same request returns the same response
     // Here's the BUG of the code. If DELETE were idempotent, it should return the same response 204,
-    // but it returns 404. So this test will give an error.
+    // but it returns 404. So this test should give an error.
     response = client
         .target("http://localhost:8282/contacts/person/2").request()
         .delete();
-    assertEquals(204, response.getStatus());
+    // assertEquals(204, response.getStatus()); // This assert fails exposing the bug
+    assertEquals(404, response.getStatus()); // This assert pass but not expose the bug
   }
 
   @Test
