@@ -12,6 +12,7 @@ import org.glassfish.jersey.grizzly2.httpserver.GrizzlyHttpServerFactory;
 import rest.addressbook.config.ApplicationConfig;
 import rest.addressbook.domain.AddressBook;
 import rest.addressbook.domain.Person;
+import security.service.JWTService;
 
 public class Server {
   private static final Logger LOGGER = Grizzly.logger(Server.class);
@@ -19,6 +20,7 @@ public class Server {
   public static void main(String[] args) {
     LOGGER.setLevel(Level.FINER);
     AddressBook ab = new AddressBook();
+    JWTService jwtService = new JWTService();
 
     // Some dummy data
     Person salvador = new Person();
@@ -32,7 +34,7 @@ public class Server {
 
     URI uri = UriBuilder.fromUri("http://localhost/").port(8080).build();
     HttpServer server = GrizzlyHttpServerFactory.createHttpServer(uri,
-      new ApplicationConfig(ab));
+      new ApplicationConfig(ab, jwtService));
 
 
     LOGGER.info("Press 's'+'enter' to shutdown now the server...");

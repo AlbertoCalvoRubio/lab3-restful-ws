@@ -18,6 +18,9 @@ import org.junit.Test;
 import rest.addressbook.config.ApplicationConfig;
 import rest.addressbook.domain.AddressBook;
 import rest.addressbook.domain.Person;
+import security.service.JWTService;
+import security.service.domain.Credentials;
+import security.service.domain.Jws;
 
 /**
  * A simple test suite.
@@ -37,8 +40,9 @@ public class AddressBookServiceTest {
   @Test
   public void serviceIsAlive() throws IOException {
     // Prepare server
+    JWTService jwtService = new JWTService();
     AddressBook ab = new AddressBook();
-    launchServer(ab);
+    launchServer(ab, jwtService);
 
     // Request the address book
     Client client = ClientBuilder.newClient();
@@ -57,8 +61,9 @@ public class AddressBookServiceTest {
   @Test
   public void createUser() throws IOException {
     // Prepare server
+    JWTService jwtService = new JWTService();
     AddressBook ab = new AddressBook();
-    launchServer(ab);
+    launchServer(ab, jwtService);
 
     // Prepare data
     Person juan = new Person();
@@ -99,12 +104,13 @@ public class AddressBookServiceTest {
   @Test
   public void createUsers() throws IOException {
     // Prepare server
+    JWTService jwtService = new JWTService();
     AddressBook ab = new AddressBook();
     Person salvador = new Person();
     salvador.setName("Salvador");
     salvador.setId(ab.nextId());
     ab.getPersonList().add(salvador);
-    launchServer(ab);
+    launchServer(ab, jwtService);
 
     // Prepare data
     Person juan = new Person();
@@ -155,6 +161,7 @@ public class AddressBookServiceTest {
   public void listUsers() throws IOException {
 
     // Prepare server
+    JWTService jwtService = new JWTService();
     AddressBook ab = new AddressBook();
     Person salvador = new Person();
     salvador.setName("Salvador");
@@ -162,7 +169,7 @@ public class AddressBookServiceTest {
     juan.setName("Juan");
     ab.getPersonList().add(salvador);
     ab.getPersonList().add(juan);
-    launchServer(ab);
+    launchServer(ab, jwtService);
 
     // Test list of contacts
     Client client = ClientBuilder.newClient();
@@ -186,6 +193,7 @@ public class AddressBookServiceTest {
   @Test
   public void updateUsers() throws IOException {
     // Prepare server
+    JWTService jwtService = new JWTService();
     AddressBook ab = new AddressBook();
     Person salvador = new Person();
     salvador.setName("Salvador");
@@ -196,7 +204,7 @@ public class AddressBookServiceTest {
     URI juanURI = URI.create("http://localhost:8282/contacts/person/2");
     ab.getPersonList().add(salvador);
     ab.getPersonList().add(juan);
-    launchServer(ab);
+    launchServer(ab, jwtService);
 
     // Update Maria
     Person maria = new Person();
@@ -239,6 +247,7 @@ public class AddressBookServiceTest {
   @Test
   public void deleteUsers() throws IOException {
     // Prepare server
+    JWTService jwtService = new JWTService();
     AddressBook ab = new AddressBook();
     Person salvador = new Person();
     salvador.setName("Salvador");
@@ -248,18 +257,28 @@ public class AddressBookServiceTest {
     juan.setId(2);
     ab.getPersonList().add(salvador);
     ab.getPersonList().add(juan);
-    launchServer(ab);
+    launchServer(ab, jwtService);
+
+    // Login
+    Client client = ClientBuilder.newClient();
+    Credentials credentials = new Credentials("user", "user");
+    Response response = client
+        .target("http://localhost:8282/login").request()
+        .post(Entity.entity(credentials, MediaType.APPLICATION_JSON));
+
+    Jws jws = response.readEntity(Jws.class);
+
 
     // Delete a user
-    Client client = ClientBuilder.newClient();
-    Response response = client
-      .target("http://localhost:8282/contacts/person/2").request()
+    client = ClientBuilder.newClient();
+    response = client
+      .target("http://localhost:8282/contacts/person/2").request().header("Authorization", "Bearer " + jws.getJws())
       .delete();
     assertEquals(204, response.getStatus());
 
     // Verify that the user has been deleted
     response = client.target("http://localhost:8282/contacts/person/2")
-      .request().delete();
+      .request().header("Authorization", "Bearer " + jws.getJws()).delete();
     assertEquals(404, response.getStatus());
 
     //////////////////////////////////////////////////////////////////////
@@ -270,8 +289,9 @@ public class AddressBookServiceTest {
   }
 
   @Test
-  public void findUsers() throws IOException {
+  public void deleteUsersWithoutLogin() throws IOException {
     // Prepare server
+    JWTService jwtService = new JWTService();
     AddressBook ab = new AddressBook();
     Person salvador = new Person();
     salvador.setName("Salvador");
@@ -281,7 +301,29 @@ public class AddressBookServiceTest {
     juan.setId(2);
     ab.getPersonList().add(salvador);
     ab.getPersonList().add(juan);
-    launchServer(ab);
+    launchServer(ab, jwtService);
+
+    // Delete a user without login should get a 401 error code
+    Client client = ClientBuilder.newClient();
+    Response response = client
+        .target("http://localhost:8282/contacts/person/2").request().delete();
+    assertEquals(401, response.getStatus());
+  }
+
+  @Test
+  public void findUsers() throws IOException {
+    // Prepare server
+    JWTService jwtService = new JWTService();
+    AddressBook ab = new AddressBook();
+    Person salvador = new Person();
+    salvador.setName("Salvador");
+    salvador.setId(1);
+    Person juan = new Person();
+    juan.setName("Juan");
+    juan.setId(2);
+    ab.getPersonList().add(salvador);
+    ab.getPersonList().add(juan);
+    launchServer(ab, jwtService);
 
     // Test user 1 exists
     Client client = ClientBuilder.newClient();
@@ -311,10 +353,10 @@ public class AddressBookServiceTest {
     assertEquals(404, response.getStatus());
   }
 
-  private void launchServer(AddressBook ab) throws IOException {
+  private void launchServer(AddressBook ab, JWTService jwtService) throws IOException {
     URI uri = UriBuilder.fromUri("http://localhost/").port(8282).build();
     server = GrizzlyHttpServerFactory.createHttpServer(uri,
-      new ApplicationConfig(ab));
+      new ApplicationConfig(ab, jwtService));
     server.start();
   }
 

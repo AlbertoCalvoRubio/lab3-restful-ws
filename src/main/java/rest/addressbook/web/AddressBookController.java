@@ -4,6 +4,7 @@ import javax.inject.Inject;
 import javax.ws.rs.Consumes;
 import javax.ws.rs.DELETE;
 import javax.ws.rs.GET;
+import javax.ws.rs.HeaderParam;
 import javax.ws.rs.POST;
 import javax.ws.rs.PUT;
 import javax.ws.rs.Path;
@@ -16,6 +17,7 @@ import javax.ws.rs.core.Response.Status;
 import javax.ws.rs.core.UriInfo;
 import rest.addressbook.domain.AddressBook;
 import rest.addressbook.domain.Person;
+import security.service.JWTService;
 
 /**
  * A service that manipulates contacts in an address book.
@@ -28,6 +30,9 @@ public class AddressBookController {
    */
   @Inject
   AddressBook addressBook;
+
+  @Inject
+  JWTService jwtService;
 
   /**
    * A GET /contacts request should return the address book in JSON.
@@ -87,7 +92,7 @@ public class AddressBookController {
   @Path("/person/{id}")
   @Produces(MediaType.APPLICATION_JSON)
   public Response updatePerson(@Context UriInfo info,
-                               @PathParam("id") int id, Person person) {
+      @PathParam("id") int id, Person person) {
     for (int i = 0; i < addressBook.getPersonList().size(); i++) {
       if (addressBook.getPersonList().get(i).getId() == id) {
         person.setId(id);
@@ -108,7 +113,14 @@ public class AddressBookController {
   @DELETE
   @Path("/person/{id}")
   @Produces(MediaType.APPLICATION_JSON)
-  public Response updatePerson(@PathParam("id") int id) {
+  public Response deletePerson(@HeaderParam("Authorization") String authorization, @PathParam("id") int id) {
+    try {
+      String token = authorization.substring(authorization.lastIndexOf(' ') + 1);
+      jwtService.verifyJWT(token);
+    } catch (Exception e) {
+      return Response.status(Status.UNAUTHORIZED).build();
+    }
+
     for (int i = 0; i < addressBook.getPersonList().size(); i++) {
       if (addressBook.getPersonList().get(i).getId() == id) {
         addressBook.getPersonList().remove(i);
